@@ -1,12 +1,8 @@
-// src/lib/supabase.ts
-// Supabase client configuration for database connections
-// Does not include authentication setup or advanced features
-
 import { createClient } from '@supabase/supabase-js'
 
 export const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!, // bypasses RLS for server writes
+  process.env.SUPABASE_SERVICE_ROLE_KEY!, // server writes; bypass RLS
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 

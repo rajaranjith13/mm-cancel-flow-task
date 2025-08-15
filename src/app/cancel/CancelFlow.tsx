@@ -1,6 +1,6 @@
 'use client'
 import Image from 'next/image'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { finalizeSchema, downsellSchema } from '@/lib/validation'
 
 type Props = {
@@ -10,7 +10,7 @@ type Props = {
   priceCents: number
   renewsAt?: string
   pending: boolean
-  csrfToken: string
+  // ⬇️ csrfToken removed from props
   prices: { control: { monthly: number; annual: number }; b: { monthly: number; annual: number } }
 }
 
@@ -56,6 +56,17 @@ export default function CancelFlow(p: Props) {
   const [freeText, setFreeText] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // ⬇️ NEW: fetch CSRF token on mount
+  const [csrfToken, setCsrfToken] = useState<string>('')
+  useEffect(() => {
+    let alive = true
+    fetch('/api/csrf')
+      .then(r => r.json())
+      .then(j => { if (alive) setCsrfToken(j.token) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
   const isVariantB = p.variant === 'B'
   const prices = isVariantB ? p.prices.b : p.prices.control
 
@@ -63,9 +74,15 @@ export default function CancelFlow(p: Props) {
     <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-3 md:p-8">
       <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl ring-1 ring-black/5">
         {/* Header */}
-        <div className="flex items-center justify-between border-b px-6 py-3 md:px-8">
-          <div className="text-sm text-gray-500">{TEXT.modalTitle}</div>
-          <button className="rounded-full p-1 text-gray-500 hover:bg-gray-100" onClick={() => (window.location.href = '/')} aria-label="Close">×</button>
+        <div className="border-b px-6 py-3 md:px-8 flex justify-center items-center relative">
+          <div className="text-lg font-semibold text-gray-800">{TEXT.modalTitle}</div>
+          <button
+            className="absolute right-6 rounded-full p-1 text-gray-500 hover:bg-gray-100"
+            onClick={() => (window.location.href = '/')}
+            aria-label="Close"
+          >
+            ×
+          </button>
         </div>
 
         {/* Body */}
@@ -74,12 +91,54 @@ export default function CancelFlow(p: Props) {
           <div className="flex flex-col">
             {step === 'intro' && <IntroCard onYes={() => setStep('yes_congrats')} onNo={() => setStep('offer')} />}
             {step === 'yes_congrats' && <YesCongrats onNext={() => setStep('yes_feedback')} />}
-            {step === 'yes_feedback' && <YesFeedback freeText={freeText} setFreeText={setFreeText} loading={loading} onSubmit={async () => { setLoading(true); await acceptDownsell({ reasonKey: 'job_found', reasonText: freeText }); setLoading(false); setStep('done'); window.location.href='/?kept=1'; }} />}
-            {step === 'offer' && <OfferCard isB={isVariantB} prices={prices} onAccept={async () => { setLoading(true); await acceptDownsell({ reasonKey, reasonText }); setLoading(false); setStep('accepted'); }} onDecline={() => setStep('reasons')} />}
+            {step === 'yes_feedback' && (
+              <YesFeedback
+                freeText={freeText}
+                setFreeText={setFreeText}
+                loading={loading || !csrfToken}
+                onSubmit={async () => {
+                  if (!csrfToken) return
+                  setLoading(true)
+                  await acceptDownsell({ reasonKey: 'job_found', reasonText: freeText })
+                  setLoading(false)
+                  setStep('done')
+                  window.location.href='/?kept=1'
+                }}
+              />
+            )}
+            {step === 'offer' && (
+              <OfferCard
+                isB={isVariantB}
+                prices={prices}
+                onAccept={async () => {
+                  if (!csrfToken) return
+                  setLoading(true)
+                  await acceptDownsell({ reasonKey, reasonText })
+                  setLoading(false)
+                  setStep('accepted')
+                }}
+                onDecline={() => setStep('reasons')}
+              />
+            )}
             {step === 'accepted' && <AcceptedCard onFinish={() => (window.location.href='/?kept=1')} />}
-            {step === 'reasons' && <ReasonForm reasonKey={reasonKey} setReasonKey={setReasonKey} reasonText={reasonText} setReasonText={setReasonText} isB={isVariantB} loading={loading}
-              onKeep={async () => { setLoading(true); await acceptDownsell({ reasonKey, reasonText }); setLoading(false); window.location.href='/?kept=1'; }}
-              onCancel={finalize} />}
+            {step === 'reasons' && (
+              <ReasonForm
+                reasonKey={reasonKey}
+                setReasonKey={setReasonKey}
+                reasonText={reasonText}
+                setReasonText={setReasonText}
+                isB={isVariantB}
+                loading={loading || !csrfToken}
+                onKeep={async () => {
+                  if (!csrfToken) return
+                  setLoading(true)
+                  await acceptDownsell({ reasonKey, reasonText })
+                  setLoading(false)
+                  window.location.href='/?kept=1'
+                }}
+                onCancel={finalize}
+              />
+            )}
           </div>
 
           {/* Right: skyline image */}
@@ -91,9 +150,11 @@ export default function CancelFlow(p: Props) {
     </div>
   )
 
+  // --- helpers use the csrfToken from state ---
   async function finalize() {
+    if (!csrfToken) return
     setLoading(true)
-    const body = { cancellationId: p.cancellationId, csrfToken: p.csrfToken, reasonKey, reasonText }
+    const body = { cancellationId: p.cancellationId, csrfToken, reasonKey, reasonText }
     const parsed = finalizeSchema.safeParse(body)
     if (!parsed.success) { setLoading(false); alert('Invalid input.'); return }
     const res = await fetch('/api/cancel/submit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(parsed.data) })
@@ -102,7 +163,8 @@ export default function CancelFlow(p: Props) {
   }
 
   async function acceptDownsell(extra: { reasonKey: string; reasonText?: string }) {
-    const body = { cancellationId: p.cancellationId, csrfToken: p.csrfToken, reasonKey: extra.reasonKey, reasonText: extra.reasonText ?? '' }
+    if (!csrfToken) return
+    const body = { cancellationId: p.cancellationId, csrfToken, reasonKey: extra.reasonKey, reasonText: extra.reasonText ?? '' }
     const parsed = downsellSchema.safeParse(body)
     if (!parsed.success) { alert('Invalid input.'); return }
     const res = await fetch('/api/cancel/downsell', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(parsed.data) })
@@ -116,21 +178,28 @@ function IntroCard({ onYes, onNo }: { onYes: () => void; onNo: () => void }) { r
   <p className="mt-3 text-xl italic text-gray-900 md:text-2xl">{TEXT.introQuestion}</p>
   <p className="mt-3 max-w-prose text-gray-600">{TEXT.introBody}</p>
   <div className="mt-6 space-y-3">
-    <button onClick={onYes} className="w-full rounded-xl border border-gray-300 px-4 py-3 text-left hover:bg-gray-50">{TEXT.yesBtn}</button>
-    <button onClick={onNo} className="w-full rounded-xl border border-gray-300 px-4 py-3 text-left hover:bg-gray-50">{TEXT.noBtn}</button>
+    <button onClick={onYes} className="w-full rounded-xl border border-gray-300 px-4 py-3 text-center hover:bg-gray-50">
+      {TEXT.yesBtn}
+    </button>
+    <button onClick={onNo} className="w-full rounded-xl border border-gray-300 px-4 py-3 text-center hover:bg-gray-50">
+      {TEXT.noBtn}
+    </button>
   </div>
 </>) }
+
 function YesCongrats({ onNext }: { onNext: () => void }) { return (<>
   <h2 className="text-2xl font-semibold text-gray-900 md:text-3xl">{TEXT.yesTitle}</h2>
   <p className="mt-2 text-gray-600">{TEXT.yesBody}</p>
   <div className="mt-6"><button onClick={onNext} className="w-full rounded-xl border border-gray-300 px-4 py-3 hover:bg-gray-50">Continue</button></div>
 </>) }
+
 function YesFeedback({ freeText, setFreeText, loading, onSubmit }: { freeText: string; setFreeText: (v: string) => void; loading: boolean; onSubmit: () => Promise<void> | void }) { return (<>
   <h3 className="text-2xl font-semibold text-gray-900 md:text-3xl">{TEXT.yesTitle}</h3>
   <p className="mt-2 text-gray-600">{TEXT.yesBody}</p>
   <textarea value={freeText} onChange={(e) => setFreeText(e.target.value)} placeholder={TEXT.yesPlaceholder} maxLength={500} className="mt-4 h-28 w-full resize-none rounded-xl border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-violet-600" />
   <button disabled={loading} onClick={onSubmit} className="mt-4 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700 disabled:opacity-60">{loading ? 'Saving…' : TEXT.yesCta}</button>
 </>) }
+
 function OfferCard({ isB, prices, onAccept, onDecline }: { isB: boolean; prices: { monthly: number; annual: number }; onAccept: () => Promise<void> | void; onDecline: () => void }) { return (<>
   <button onClick={onDecline} className="mb-4 w-fit text-sm text-gray-500 hover:text-gray-900">← Back</button>
   <h2 className="text-2xl font-semibold text-gray-900 md:text-3xl">{TEXT.offerTitle}</h2>
@@ -142,11 +211,13 @@ function OfferCard({ isB, prices, onAccept, onDecline }: { isB: boolean; prices:
     <button onClick={onDecline} className="w-full rounded-xl border border-gray-300 px-4 py-3 hover:bg-gray-50">{TEXT.offerDecline}</button>
   </div>
 </>) }
+
 function AcceptedCard({ onFinish }: { onFinish: () => void }) { return (<>
   <h2 className="text-2xl font-semibold text-gray-900 md:text-3xl">{TEXT.acceptedTitle}</h2>
   <p className="mt-2 text-gray-600">{TEXT.acceptedBody}</p>
   <button onClick={onFinish} className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700">{TEXT.acceptedCta}</button>
 </>) }
+
 function ReasonForm({ reasonKey, setReasonKey, reasonText, setReasonText, isB, loading, onKeep, onCancel }:
 { reasonKey: string; setReasonKey: (v: string) => void; reasonText: string; setReasonText: (v: string) => void; isB: boolean; loading: boolean; onKeep: () => Promise<void> | void; onCancel: () => Promise<void> | void }) { return (<>
   <button onClick={() => history.back()} className="mb-4 w-fit text-sm text-gray-500 hover:text-gray-900">← Back</button>
