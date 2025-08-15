@@ -19,7 +19,7 @@ type Step =
   // YES branch
   | 'yes_survey'        // Step 1
   | 'yes_text'          // Step 2
-  | 'visa_gate'         // Step 3
+  | 'visa_gate'         // Step 3 (gate)
   | 'visa_company_yes'  // Step 3 (details after gate)
   | 'visa_company_no'   // Step 3 (details after gate)
   | 'finish_mm'
@@ -43,20 +43,26 @@ const TEXT = {
 
   // YES branch
   yes_survey_title: 'Congrats on the new role! 🎉',
-  yes_survey_q1: 'Did you find this job with MigrateMate?*',
+  yes_survey_q1: 'Did you find this job with MigrateMate?',
   continue: 'Continue',
 
   yes_text_title: 'What’s one thing you wish we could’ve helped you with?',
   yes_text_hint:
-    'We’re always looking to improve; your thoughts can help us make Migrate Mate more useful for others.*',
+    'We’re always looking to improve; your thoughts can help us make Migrate Mate more useful for others.',
   yes_text_placeholder: 'Min 25 characters…',
 
   visa_mm_h1: 'We helped you land the job, now let’s help you secure your visa.',
   visa_nom_h1: 'You landed the job! That’s what we live for.',
   visa_nom_sub: 'Even if it wasn’t through Migrate Mate, let us help get your visa sorted.',
-  visa_q: 'Is your company providing an immigration lawyer to help with your visa?*',
+  visa_q: 'Is your company providing an immigration lawyer to help with your visa?',
 
-  visa_type_q: 'Which visa would you like to apply for?*',
+  // ⬇️ New keys for Step 3 details
+  visa_partner_help: 'We can connect you with one of our trusted partners.',
+  visa_type_q_yes: 'What visa will you be applying for?',
+  visa_type_q_no: 'Which visa would you like to apply for?',
+
+  // (kept for other uses if any)
+  visa_type_q: 'Which visa would you like to apply for?',
   complete_cancel: 'Complete cancellation',
 
   finish_mm_title: 'All done, your cancellation’s been processed.',
@@ -127,7 +133,8 @@ export default function CancelFlow(p: Props) {
     return 0
   }, [step])
   const showHeaderStepper = YES_HEADER_STEPS.includes(step)
-  const showBack = !(step === 'intro' || step === 'finish_mm' || step === 'finish_nom')
+  const isFinished = step === 'finish_mm' || step === 'finish_nom'
+  const showBack = !(step === 'intro' || isFinished)
 
   function stepBack(s: Step): Step {
     switch (s) {
@@ -155,7 +162,7 @@ export default function CancelFlow(p: Props) {
               className="absolute left-6 text-sm text-gray-600 hover:text-gray-900"
               aria-label="Back"
             >
-              ← Back
+              {'<'} Back
             </button>
           ) : (
             <span className="absolute left-6 w-[56px]" aria-hidden="true" />
@@ -163,7 +170,18 @@ export default function CancelFlow(p: Props) {
 
           <div className="flex items-center gap-3">
             <div className="text-sm font-medium text-gray-800">{TEXT.modalTitle}</div>
-            {showHeaderStepper && (
+
+            {/* Stepper / Completed */}
+            {isFinished ? (
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3].map((n) => (
+                    <span key={n} className="h-1.5 w-6 rounded-full bg-emerald-500" />
+                  ))}
+                </div>
+                <span>Completed</span>
+              </div>
+            ) : showHeaderStepper && (
               <div className="flex items-center gap-2 text-xs text-gray-500">
                 <div className="flex items-center gap-1">
                   {[1, 2, 3].map((n) => {
@@ -349,7 +367,7 @@ export default function CancelFlow(p: Props) {
       }),
     }
     const parsed = finalizeSchema.safeParse(payload)
-    if (!parsed.success) { setLoading(false); alert('Invalid input.'); return }
+    if (!parsed.success) { setLoading(false); return }
     const res = await fetch('/api/cancel/submit', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(parsed.data),
     })
@@ -360,7 +378,7 @@ export default function CancelFlow(p: Props) {
   async function finalizeNoBranch() {
     const body = { cancellationId: p.cancellationId, csrfToken, reasonKey, reasonText }
     const parsed = finalizeSchema.safeParse(body)
-    if (!parsed.success) { alert('Invalid input.'); return }
+    if (!parsed.success) { return }
     const res = await fetch('/api/cancel/submit', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(parsed.data),
     })
@@ -370,7 +388,7 @@ export default function CancelFlow(p: Props) {
   async function acceptDownsell(extra: { reasonKey: string; reasonText?: string }) {
     const body = { cancellationId: p.cancellationId, csrfToken, reasonKey: extra.reasonKey, reasonText: extra.reasonText ?? '' }
     const parsed = downsellSchema.safeParse(body)
-    if (!parsed.success) { alert('Invalid input.'); return }
+    if (!parsed.success) { return }
     const res = await fetch('/api/cancel/downsell', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(parsed.data),
     })
@@ -431,8 +449,10 @@ function YesSurvey(props: {
     <>
       <HeaderRow title={TEXT.yes_survey_title} />
 
-      {/* Q1 */}
-      <label className="mt-1 block text-sm text-gray-700">{TEXT.yes_survey_q1}</label>
+      {/* Q1 (with superscript *) */}
+      <label className="mt-1 block text-sm text-gray-700">
+        {TEXT.yes_survey_q1}<sup className="text-red-500">*</sup>
+      </label>
       <div className="mt-2 grid grid-cols-2 gap-3">
         <button
           onClick={() => setFoundViaMM(true)}
@@ -444,33 +464,33 @@ function YesSurvey(props: {
         >No</button>
       </div>
 
-      {/* Q2 apply (underline word) */}
+      {/* Q2 apply (underline word) + superscript * */}
       <QRange
         label={
           <span>
-            How many roles did you <u>apply</u> for through Migrate Mate?*
+            How many roles did you <u>apply</u> for through Migrate Mate?<sup className="text-red-500">*</sup>
           </span>
         }
         value={appliedRange}
         onPick={setAppliedRange}
       />
 
-      {/* Q3 email (underline word) */}
+      {/* Q3 email (underline word) + superscript * */}
       <QRange
         label={
           <span>
-            How many companies did you <u>email</u> directly?*
+            How many companies did you <u>email</u> directly?<sup className="text-red-500">*</sup>
           </span>
         }
         value={emailedRange}
         onPick={setEmailedRange}
       />
 
-      {/* Q4 interview (underline word) with custom options */}
+      {/* Q4 interview (underline word) + superscript * with custom options */}
       <QRange
         label={
           <span>
-            How many different companies did you <u>interview</u> with?*
+            How many different companies did you <u>interview</u> with?<sup className="text-red-500">*</sup>
           </span>
         }
         value={interviewedRange}
@@ -530,7 +550,10 @@ function YesText({
   return (
     <>
       <HeaderRow title={TEXT.yes_text_title} />
-      <p className="text-gray-600">{TEXT.yes_text_hint}</p>
+      <p className="text-gray-600">
+        {TEXT.yes_text_hint}
+        <sup className="text-red-500">*</sup>
+      </p>
       <textarea
         value={value}
         onChange={(e) => setValue(e.target.value)}
@@ -549,7 +572,7 @@ function YesText({
   )
 }
 
-/** Step 3 gate — radio circles + Complete cancellation (advances) */
+/** Step 3 gate — radio circles + violet CTA */
 function VisaGate({
   foundViaMM,
   companyLawyer,
@@ -566,7 +589,9 @@ function VisaGate({
       <HeaderRow title={foundViaMM ? TEXT.visa_mm_h1 : TEXT.visa_nom_h1} />
       {!foundViaMM && <p className="mb-2 text-gray-700">{TEXT.visa_nom_sub}</p>}
 
-      <label className="block text-sm text-gray-700">{TEXT.visa_q}</label>
+      <label className="block text-sm text-gray-700">
+        {TEXT.visa_q}<sup className="text-red-500">*</sup>
+      </label>
       <div className="mt-3 space-y-3">
         <label className="flex items-center gap-3">
           <input
@@ -591,7 +616,7 @@ function VisaGate({
       <button
         disabled={companyLawyer === null}
         onClick={onContinue}
-        className="mt-6 w-full rounded-xl bg-red-600 px-4 py-3 font-medium text-white hover:bg-red-700 disabled:opacity-60"
+        className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700 disabled:opacity-60"
       >
         {TEXT.complete_cancel}
       </button>
@@ -599,7 +624,7 @@ function VisaGate({
   )
 }
 
-/** Step 3 details — Complete cancellation actually submits */
+/** Step 3 details — radios reflecting prior choice + conditional visa copy + violet CTA */
 function VisaDetails({
   foundViaMM,
   companyLawyer,
@@ -620,14 +645,34 @@ function VisaDetails({
       <HeaderRow title={foundViaMM ? TEXT.visa_mm_h1 : TEXT.visa_nom_h1} />
       {!foundViaMM && <p className="mb-2 text-gray-700">{TEXT.visa_nom_sub}</p>}
 
+      {/* Read-only radios mirroring previous answer */}
       <div className="mb-3 text-sm text-gray-700">
-        {TEXT.visa_q} <strong>{companyLawyer ? 'Yes' : 'No'}</strong>
+        {TEXT.visa_q}{' '}
+        <div className="mt-2 space-y-2">
+          <label className="flex items-center gap-3 opacity-70">
+            <input type="radio" checked={companyLawyer === true} readOnly />
+            <span>Yes</span>
+          </label>
+          <label className="flex items-center gap-3 opacity-70">
+            <input type="radio" checked={companyLawyer === false} readOnly />
+            <span>No</span>
+          </label>
+        </div>
       </div>
 
-      <label className="block text-sm text-gray-700">{TEXT.visa_type_q}</label>
+      {/* Helper + visa question varies by answer */}
+      {!companyLawyer && (
+        <p className="mt-1 text-gray-700">{TEXT.visa_partner_help}</p>
+      )}
+
+      <label className="mt-3 block text-sm text-gray-700">
+        {companyLawyer ? TEXT.visa_type_q_yes : TEXT.visa_type_q_no}
+        <sup className="text-red-500">*</sup>
+      </label>
       <input
         value={visaType}
         onChange={(e) => setVisaType(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault() }}
         placeholder="Enter visa type…"
         className="mt-2 w-full rounded-xl border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-violet-600"
       />
@@ -635,7 +680,7 @@ function VisaDetails({
       <button
         disabled={disabled}
         onClick={onComplete}
-        className="mt-6 w-full rounded-xl bg-red-600 px-4 py-3 font-medium text-white hover:bg-red-700 disabled:opacity-60"
+        className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700 disabled:opacity-60"
       >
         {TEXT.complete_cancel}
       </button>
