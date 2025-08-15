@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, ReactNode } from 'react'
 import { finalizeSchema, downsellSchema } from '@/lib/validation'
 
 type Props = {
@@ -17,13 +17,13 @@ type Props = {
 type Step =
   | 'intro'
   // YES branch
-  | 'yes_survey'        // Screen 2
-  | 'yes_text'          // Screen 3
-  | 'visa_gate'         // Screen 4/5
-  | 'visa_company_yes'  // Screen 6/8
-  | 'visa_company_no'   // Screen 7/9
-  | 'finish_mm'         // Screen 10
-  | 'finish_nom'        // Screen 11
+  | 'yes_survey'        // Step 1
+  | 'yes_text'          // Step 2
+  | 'visa_gate'         // Step 3
+  | 'visa_company_yes'  // Step 3 (details after gate)
+  | 'visa_company_no'   // Step 3 (details after gate)
+  | 'finish_mm'
+  | 'finish_nom'
   // NO branch
   | 'offer'
   | 'accepted'
@@ -31,6 +31,8 @@ type Step =
 
 const TEXT = {
   modalTitle: 'Subscription Cancellation',
+
+  // Intro
   introHeaderL1: 'Hey mate,',
   introHeaderL2: 'Quick one before you go.',
   introQuestion: 'Have you found a job yet?',
@@ -39,11 +41,9 @@ const TEXT = {
   yesBtn: "Yes, I’ve found a job",
   noBtn: "Not yet — I’m still looking",
 
+  // YES branch
   yes_survey_title: 'Congrats on the new role! 🎉',
   yes_survey_q1: 'Did you find this job with MigrateMate?*',
-  yes_survey_q2: 'How many roles did you apply for through Migrate Mate?*',
-  yes_survey_q3: 'How many companies did you email directly?*',
-  yes_survey_q4: 'How many different companies did you interview with?*',
   continue: 'Continue',
 
   yes_text_title: 'What’s one thing you wish we could’ve helped you with?',
@@ -65,6 +65,7 @@ const TEXT = {
   finish_nom_title: 'Your cancellation’s all sorted, mate, no more charges.',
   finish: 'Finish',
 
+  // NO branch
   offerTitle: 'We built this to help you land the job, this makes it a little easier.',
   offerBody: 'We’ve been there and we’re here to help you.',
   offerAcceptA: 'Stick around (standard pricing)',
@@ -76,8 +77,9 @@ const TEXT = {
   reasonTitle: "What's the main reason for canceling?",
 }
 
-const RANGE = ['0', '1–5', '6–20', '20+'] as const
-type Range = typeof RANGE[number]
+type Range = string
+const RANGE_DEFAULT: Range[]   = ['0', '1–5', '6–20', '20+']
+const RANGE_INTERVIEW: Range[] = ['0', '1–2', '3–5', '5+']
 
 export default function CancelFlow(p: Props) {
   const [step, setStep] = useState<Step>('intro')
@@ -92,7 +94,7 @@ export default function CancelFlow(p: Props) {
     return () => { done = true }
   }, [])
 
-  // YES branch
+  // YES branch state
   const [foundViaMM, setFoundViaMM] = useState<boolean | null>(null)
   const [appliedRange, setAppliedRange] = useState<Range | null>(null)
   const [emailedRange, setEmailedRange] = useState<Range | null>(null)
@@ -109,7 +111,7 @@ export default function CancelFlow(p: Props) {
   const [visaType, setVisaType] = useState('')
   const visaOK = visaType.trim().length > 0
 
-  // NO branch
+  // NO branch state
   const [reasonKey, setReasonKey] = useState('too_expensive')
   const [reasonText, setReasonText] = useState('')
   const [loading, setLoading] = useState(false)
@@ -147,7 +149,6 @@ export default function CancelFlow(p: Props) {
 
         {/* Header */}
         <div className="relative flex items-center justify-center border-b px-6 py-3 md:px-8">
-          {/* Left: Back */}
           {showBack ? (
             <button
               onClick={() => setStep(stepBack(step))}
@@ -160,7 +161,6 @@ export default function CancelFlow(p: Props) {
             <span className="absolute left-6 w-[56px]" aria-hidden="true" />
           )}
 
-          {/* Center: Title + Stepper */}
           <div className="flex items-center gap-3">
             <div className="text-sm font-medium text-gray-800">{TEXT.modalTitle}</div>
             {showHeaderStepper && (
@@ -179,7 +179,6 @@ export default function CancelFlow(p: Props) {
             )}
           </div>
 
-          {/* Right: Close */}
           <button
             className="absolute right-6 rounded-full p-1 text-gray-500 hover:bg-gray-100"
             onClick={() => (window.location.href = '/')}
@@ -196,6 +195,7 @@ export default function CancelFlow(p: Props) {
               <IntroCard onYes={() => setStep('yes_survey')} onNo={() => setStep('offer')} />
             )}
 
+            {/* Step 1 */}
             {step === 'yes_survey' && (
               <YesSurvey
                 foundViaMM={foundViaMM}
@@ -211,6 +211,7 @@ export default function CancelFlow(p: Props) {
               />
             )}
 
+            {/* Step 2 */}
             {step === 'yes_text' && (
               <YesText
                 value={freeText}
@@ -220,6 +221,7 @@ export default function CancelFlow(p: Props) {
               />
             )}
 
+            {/* Step 3 (gate) */}
             {step === 'visa_gate' && (
               <VisaGate
                 foundViaMM={!!foundViaMM}
@@ -232,6 +234,7 @@ export default function CancelFlow(p: Props) {
               />
             )}
 
+            {/* Step 3 (details) */}
             {step === 'visa_company_yes' && (
               <VisaDetails
                 foundViaMM={!!foundViaMM}
@@ -245,7 +248,6 @@ export default function CancelFlow(p: Props) {
                 }}
               />
             )}
-
             {step === 'visa_company_no' && (
               <VisaDetails
                 foundViaMM={!!foundViaMM}
@@ -272,6 +274,7 @@ export default function CancelFlow(p: Props) {
               <FinishMihailo onFinish={() => (window.location.href = '/?canceled=1')} />
             )}
 
+            {/* NO flow (unchanged) */}
             {step === 'offer' && (
               <OfferCard
                 isB={isVariantB}
@@ -285,11 +288,9 @@ export default function CancelFlow(p: Props) {
                 onDecline={() => setStep('reasons')}
               />
             )}
-
             {step === 'accepted' && (
               <AcceptedCard onFinish={() => (window.location.href = '/?kept=1')} />
             )}
-
             {step === 'reasons' && (
               <ReasonForm
                 reasonKey={reasonKey}
@@ -430,7 +431,7 @@ function YesSurvey(props: {
     <>
       <HeaderRow title={TEXT.yes_survey_title} />
 
-      {/* Q1 (pills are fine here as per fig) */}
+      {/* Q1 */}
       <label className="mt-1 block text-sm text-gray-700">{TEXT.yes_survey_q1}</label>
       <div className="mt-2 grid grid-cols-2 gap-3">
         <button
@@ -443,9 +444,39 @@ function YesSurvey(props: {
         >No</button>
       </div>
 
-      <QRange label={TEXT.yes_survey_q2} value={appliedRange} onPick={setAppliedRange} />
-      <QRange label={TEXT.yes_survey_q3} value={emailedRange}  onPick={setEmailedRange} />
-      <QRange label={TEXT.yes_survey_q4} value={interviewedRange} onPick={setInterviewedRange} />
+      {/* Q2 apply (underline word) */}
+      <QRange
+        label={
+          <span>
+            How many roles did you <u>apply</u> for through Migrate Mate?*
+          </span>
+        }
+        value={appliedRange}
+        onPick={setAppliedRange}
+      />
+
+      {/* Q3 email (underline word) */}
+      <QRange
+        label={
+          <span>
+            How many companies did you <u>email</u> directly?*
+          </span>
+        }
+        value={emailedRange}
+        onPick={setEmailedRange}
+      />
+
+      {/* Q4 interview (underline word) with custom options */}
+      <QRange
+        label={
+          <span>
+            How many different companies did you <u>interview</u> with?*
+          </span>
+        }
+        value={interviewedRange}
+        onPick={setInterviewedRange}
+        options={RANGE_INTERVIEW}
+      />
 
       <button
         disabled={disabled}
@@ -458,12 +489,22 @@ function YesSurvey(props: {
   )
 }
 
-function QRange({ label, value, onPick }: { label: string; value: Range | null; onPick: (r: Range) => void }) {
+function QRange({
+  label,
+  value,
+  onPick,
+  options = RANGE_DEFAULT,
+}: {
+  label: ReactNode
+  value: Range | null
+  onPick: (r: Range) => void
+  options?: Range[]
+}) {
   return (
     <div className="mt-5">
       <label className="block text-sm text-gray-700">{label}</label>
       <div className="mt-2 grid grid-cols-4 gap-2">
-        {RANGE.map((r) => (
+        {options.map((r) => (
           <button
             key={r}
             onClick={() => onPick(r)}
@@ -477,7 +518,14 @@ function QRange({ label, value, onPick }: { label: string; value: Range | null; 
   )
 }
 
-function YesText({ value, setValue, disabled, onNext }: { value: string; setValue: (s: string) => void; disabled: boolean; onNext: () => void }) {
+function YesText({
+  value, setValue, disabled, onNext,
+}: {
+  value: string
+  setValue: (s: string) => void
+  disabled: boolean
+  onNext: () => void
+}) {
   const count = value.trim().length
   return (
     <>
@@ -501,7 +549,7 @@ function YesText({ value, setValue, disabled, onNext }: { value: string; setValu
   )
 }
 
-/** Visa gate — radio circles + Continue */
+/** Step 3 gate — radio circles + Complete cancellation (advances) */
 function VisaGate({
   foundViaMM,
   companyLawyer,
@@ -543,14 +591,15 @@ function VisaGate({
       <button
         disabled={companyLawyer === null}
         onClick={onContinue}
-        className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700 disabled:opacity-60"
+        className="mt-6 w-full rounded-xl bg-red-600 px-4 py-3 font-medium text-white hover:bg-red-700 disabled:opacity-60"
       >
-        {TEXT.continue}
+        {TEXT.complete_cancel}
       </button>
     </>
   )
 }
 
+/** Step 3 details — Complete cancellation actually submits */
 function VisaDetails({
   foundViaMM,
   companyLawyer,
@@ -635,6 +684,7 @@ function FinishMihailo({ onFinish }: { onFinish: () => void }) {
   )
 }
 
+/* NO-branch components unchanged below (OfferCard, AcceptedCard, ReasonForm) */
 function OfferCard({
   isB,
   prices,
