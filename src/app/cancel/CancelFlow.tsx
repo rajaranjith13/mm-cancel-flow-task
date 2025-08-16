@@ -2,7 +2,16 @@
 
 import Image from 'next/image'
 import { useEffect, useMemo, useState, ReactNode } from 'react'
-import { finalizeSchema, downsellSchema } from '@/lib/validation'
+import { finalizeSchema } from '@/lib/validation'
+
+type Step =
+  | 'yes_survey'        // Step 1
+  | 'yes_text'          // Step 2
+  | 'visa_gate'         // Step 3 (gate)
+  | 'visa_company_yes'  // Step 3 (details after gate)
+  | 'visa_company_no'   // Step 3 (details after gate)
+  | 'finish_mm'
+  | 'finish_nom'
 
 type Props = {
   variant: 'A' | 'B'
@@ -12,34 +21,11 @@ type Props = {
   renewsAt?: string
   pending: boolean
   prices: { control: { monthly: number; annual: number }; b: { monthly: number; annual: number } }
+  initialStep?: Step
 }
-
-type Step =
-  | 'intro'
-  // YES branch
-  | 'yes_survey'        // Step 1
-  | 'yes_text'          // Step 2
-  | 'visa_gate'         // Step 3 (gate)
-  | 'visa_company_yes'  // Step 3 (details after gate)
-  | 'visa_company_no'   // Step 3 (details after gate)
-  | 'finish_mm'
-  | 'finish_nom'
-  // NO branch
-  | 'offer'
-  | 'accepted'
-  | 'reasons'
 
 const TEXT = {
   modalTitle: 'Subscription Cancellation',
-
-  // Intro
-  introHeaderL1: 'Hey mate,',
-  introHeaderL2: 'Quick one before you go.',
-  introQuestion: 'Have you found a job yet?',
-  introBody:
-    'Whatever your answer, we just want to help you take the next step. With visa support, or by hearing how we can do better.',
-  yesBtn: "Yes, I’ve found a job",
-  noBtn: "Not yet — I’m still looking",
 
   // YES branch
   yes_survey_title: 'Congrats on the new role! 🎉',
@@ -55,14 +41,9 @@ const TEXT = {
   visa_nom_h1: 'You landed the job! That’s what we live for.',
   visa_nom_sub: 'Even if it wasn’t through Migrate Mate, let us help get your visa sorted.',
   visa_q: 'Is your company providing an immigration lawyer to help with your visa?',
-
-  // Step 3 details copy
   visa_partner_help: 'We can connect you with one of our trusted partners.',
   visa_type_q_yes: 'What visa will you be applying for?',
   visa_type_q_no: 'Which visa would you like to apply for?',
-
-  // (kept for other uses if any)
-  visa_type_q: 'Which visa would you like to apply for?',
   complete_cancel: 'Complete cancellation',
 
   finish_mm_title: 'All done, your cancellation’s been processed.',
@@ -70,17 +51,6 @@ const TEXT = {
     'We’re stoked to hear you’ve landed a job and sorted your visa. Big congrats from the team.🙌',
   finish_nom_title: 'Your cancellation’s all sorted, mate, no more charges.',
   finish: 'Finish',
-
-  // NO branch
-  offerTitle: 'We built this to help you land the job, this makes it a little easier.',
-  offerBody: 'We’ve been there and we’re here to help you.',
-  offerAcceptA: 'Stick around (standard pricing)',
-  offerAcceptB: 'Get $10 off until you find a job',
-  offerDecline: 'No thanks',
-  acceptedTitle: 'Great choice, mate!',
-  acceptedBody: 'You’re still on the path to your dream role. Let’s make it happen together!',
-  acceptedCta: 'Let’s keep this going',
-  reasonTitle: "What's the main reason for canceling?",
 }
 
 type Range = string
@@ -88,9 +58,9 @@ const RANGE_DEFAULT: Range[]   = ['0', '1–5', '6–20', '20+']
 const RANGE_INTERVIEW: Range[] = ['0', '1–2', '3–5', '5+']
 
 export default function CancelFlow(p: Props) {
-  const [step, setStep] = useState<Step>('intro')
-
+  const [step, setStep] = useState<Step>(p.initialStep ?? 'yes_survey')
   const [csrfToken, setCsrfToken] = useState('')
+
   useEffect(() => {
     let done = false
     fetch('/api/csrf')
@@ -117,36 +87,27 @@ export default function CancelFlow(p: Props) {
   const [visaType, setVisaType] = useState('')
   const visaOK = visaType.trim().length > 0
 
-  // NO branch state
-  const [reasonKey, setReasonKey] = useState('too_expensive')
-  const [reasonText, setReasonText] = useState('')
   const [loading, setLoading] = useState(false)
-  const isVariantB = p.variant === 'B'
-  const prices = isVariantB ? p.prices.b : p.prices.control
 
-  /** Header stepper + Back logic */
+  /** Header stepper */
   const YES_HEADER_STEPS: Step[] = ['yes_survey','yes_text','visa_gate','visa_company_yes','visa_company_no']
   const headerStepIndex = useMemo(() => {
     if (step === 'yes_survey') return 1
     if (step === 'yes_text') return 2
-    if (step === 'visa_gate' || step === 'visa_company_yes' || step === 'visa_company_no') return 3
+    if (['visa_gate','visa_company_yes','visa_company_no'].includes(step)) return 3
     return 0
   }, [step])
   const showHeaderStepper = YES_HEADER_STEPS.includes(step)
   const isFinished = step === 'finish_mm' || step === 'finish_nom'
-  const showBack = !(step === 'intro' || isFinished)
+  const showBack = !(step === 'yes_survey' || isFinished)
 
   function stepBack(s: Step): Step {
     switch (s) {
-      case 'yes_survey':       return 'intro'
       case 'yes_text':         return 'yes_survey'
       case 'visa_gate':        return 'yes_text'
       case 'visa_company_yes':
       case 'visa_company_no':  return 'visa_gate'
-      case 'reasons':          return 'offer'
-      case 'accepted':         return 'offer'
-      case 'offer':            return 'intro'
-      default:                 return 'intro'
+      default:                 return 'yes_survey'
     }
   }
 
@@ -170,8 +131,6 @@ export default function CancelFlow(p: Props) {
 
           <div className="flex items-center gap-3">
             <div className="text-sm font-medium text-gray-800">{TEXT.modalTitle}</div>
-
-            {/* Stepper / Completed */}
             {isFinished ? (
               <div className="flex items-center gap-2 text-xs text-gray-500">
                 <div className="flex items-center gap-1">
@@ -209,11 +168,6 @@ export default function CancelFlow(p: Props) {
         {/* Body */}
         <div className="grid grid-cols-1 gap-6 p-5 md:grid-cols-2 md:p-8">
           <div className="flex flex-col">
-            {step === 'intro' && (
-              <IntroCard onYes={() => setStep('yes_survey')} onNo={() => setStep('offer')} />
-            )}
-
-            {/* Step 1 */}
             {step === 'yes_survey' && (
               <YesSurvey
                 foundViaMM={foundViaMM}
@@ -229,7 +183,6 @@ export default function CancelFlow(p: Props) {
               />
             )}
 
-            {/* Step 2 */}
             {step === 'yes_text' && (
               <YesText
                 value={freeText}
@@ -239,7 +192,6 @@ export default function CancelFlow(p: Props) {
               />
             )}
 
-            {/* Step 3 (gate) */}
             {step === 'visa_gate' && (
               <VisaGate
                 foundViaMM={!!foundViaMM}
@@ -252,7 +204,6 @@ export default function CancelFlow(p: Props) {
               />
             )}
 
-            {/* Step 3 (details) */}
             {step === 'visa_company_yes' && (
               <VisaDetails
                 foundViaMM={!!foundViaMM}
@@ -262,11 +213,11 @@ export default function CancelFlow(p: Props) {
                 disabled={!visaOK || !csrfToken}
                 onComplete={async () => {
                   await finalizeYes('company_yes')
-                  // Always go to normal completion when lawyer = YES
                   setStep('finish_mm')
                 }}
               />
             )}
+
             {step === 'visa_company_no' && (
               <VisaDetails
                 foundViaMM={!!foundViaMM}
@@ -276,7 +227,6 @@ export default function CancelFlow(p: Props) {
                 disabled={!visaOK || !csrfToken}
                 onComplete={async () => {
                   await finalizeYes('company_no')
-                  // Always go to Mihailo card when lawyer = NO
                   setStep('finish_nom')
                 }}
               />
@@ -293,49 +243,8 @@ export default function CancelFlow(p: Props) {
             {step === 'finish_nom' && (
               <FinishMihailo onFinish={() => (window.location.href = '/?canceled=1')} />
             )}
-
-            {/* NO flow (unchanged) */}
-            {step === 'offer' && (
-              <OfferCard
-                isB={isVariantB}
-                prices={prices}
-                onAccept={async () => {
-                  setLoading(true)
-                  await acceptDownsell({ reasonKey, reasonText })
-                  setLoading(false)
-                  setStep('accepted')
-                }}
-                onDecline={() => setStep('reasons')}
-              />
-            )}
-            {step === 'accepted' && (
-              <AcceptedCard onFinish={() => (window.location.href = '/?kept=1')} />
-            )}
-            {step === 'reasons' && (
-              <ReasonForm
-                reasonKey={reasonKey}
-                setReasonKey={setReasonKey}
-                reasonText={reasonText}
-                setReasonText={setReasonText}
-                isB={isVariantB}
-                loading={loading}
-                onKeep={async () => {
-                  setLoading(true)
-                  await acceptDownsell({ reasonKey, reasonText })
-                  setLoading(false)
-                  window.location.href = '/?kept=1'
-                }}
-                onCancel={async () => {
-                  setLoading(true)
-                  await finalizeNoBranch()
-                  setLoading(false)
-                  window.location.href = '/?canceled=1'
-                }}
-              />
-            )}
           </div>
 
-          {/* Right image */}
           <div className="order-first overflow-hidden rounded-xl md:order-none">
             <Image
               src="/hero-main.jpg"
@@ -376,55 +285,12 @@ export default function CancelFlow(p: Props) {
     setLoading(false)
     if (!res.ok) alert('Something went wrong. Please retry.')
   }
-
-  async function finalizeNoBranch() {
-    const body = { cancellationId: p.cancellationId, csrfToken, reasonKey, reasonText }
-    const parsed = finalizeSchema.safeParse(body)
-    if (!parsed.success) { return }
-    const res = await fetch('/api/cancel/submit', {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(parsed.data),
-    })
-    if (!res.ok) alert('Something went wrong. Please retry.')
-  }
-
-  async function acceptDownsell(extra: { reasonKey: string; reasonText?: string }) {
-    const body = { cancellationId: p.cancellationId, csrfToken, reasonKey: extra.reasonKey, reasonText: extra.reasonText ?? '' }
-    const parsed = downsellSchema.safeParse(body)
-    if (!parsed.success) { return }
-    const res = await fetch('/api/cancel/downsell', {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(parsed.data),
-    })
-    if (!res.ok) alert('Could not apply the offer. Try again.')
-  }
 }
 
 /* ===== Subcomponents ===== */
 
 function HeaderRow({ title }: { title: string }) {
   return <div className="mb-4 text-2xl font-semibold text-gray-900 md:text-3xl">{title}</div>
-}
-
-function IntroCard({ onYes, onNo }: { onYes: () => void; onNo: () => void }) {
-  return (
-    <>
-      <h1 className="text-2xl font-extrabold leading-tight text-gray-900 md:text-3xl">
-        <span className="block">Hey mate,</span>
-        <span className="block">Quick one before you go.</span>
-      </h1>
-      <p className="mt-3 text-xl italic text-gray-900 md:text-2xl">Have you found a job yet?</p>
-      <p className="mt-3 max-w-prose text-gray-600">
-        Whatever your answer, we just want to help you take the next step. With visa support, or by hearing how we can do better.
-      </p>
-      <div className="mt-6 space-y-3">
-        <button onClick={onYes} className="w-full rounded-xl border border-gray-300 px-4 py-3 text-center hover:bg-gray-50">
-          Yes, I’ve found a job
-        </button>
-        <button onClick={onNo} className="w-full rounded-xl border border-gray-300 px-4 py-3 text-center hover:bg-gray-50">
-          Not yet — I’m still looking
-        </button>
-      </div>
-    </>
-  )
 }
 
 function YesSurvey(props: {
@@ -439,253 +305,83 @@ function YesSurvey(props: {
   disabled: boolean
   onNext: () => void
 }) {
-  const {
-    foundViaMM, setFoundViaMM,
-    appliedRange, setAppliedRange,
-    emailedRange, setEmailedRange,
-    interviewedRange, setInterviewedRange,
-    disabled, onNext,
-  } = props
-
+  const { foundViaMM, setFoundViaMM, appliedRange, setAppliedRange, emailedRange, setEmailedRange, interviewedRange, setInterviewedRange, disabled, onNext } = props
   return (
     <>
       <HeaderRow title={TEXT.yes_survey_title} />
-
-      {/* Q1 (with superscript *) */}
       <label className="mt-1 block text-sm text-gray-700">
         {TEXT.yes_survey_q1}<sup className="text-red-500">*</sup>
       </label>
       <div className="mt-2 grid grid-cols-2 gap-3">
-        <button
-          onClick={() => setFoundViaMM(true)}
-          className={`rounded-xl border px-4 py-3 ${foundViaMM === true ? 'border-violet-600 ring-2 ring-violet-200' : 'border-gray-300 hover:bg-gray-50'}`}
-        >Yes</button>
-        <button
-          onClick={() => setFoundViaMM(false)}
-          className={`rounded-xl border px-4 py-3 ${foundViaMM === false ? 'border-violet-600 ring-2 ring-violet-200' : 'border-gray-300 hover:bg-gray-50'}`}
-        >No</button>
+        <button onClick={() => setFoundViaMM(true)} className={`rounded-xl border px-4 py-3 ${foundViaMM === true ? 'border-violet-600 ring-2 ring-violet-200' : 'border-gray-300 hover:bg-gray-50'}`}>Yes</button>
+        <button onClick={() => setFoundViaMM(false)} className={`rounded-xl border px-4 py-3 ${foundViaMM === false ? 'border-violet-600 ring-2 ring-violet-200' : 'border-gray-300 hover:bg-gray-50'}`}>No</button>
       </div>
-
-      {/* Q2 apply (underline word) + superscript * */}
-      <QRange
-        label={
-          <span>
-            How many roles did you <u>apply</u> for through Migrate Mate?<sup className="text-red-500">*</sup>
-          </span>
-        }
-        value={appliedRange}
-        onPick={setAppliedRange}
-      />
-
-      {/* Q3 email (underline word) + superscript * */}
-      <QRange
-        label={
-          <span>
-            How many companies did you <u>email</u> directly?<sup className="text-red-500">*</sup>
-          </span>
-        }
-        value={emailedRange}
-        onPick={setEmailedRange}
-      />
-
-      {/* Q4 interview (underline word) + superscript * with custom options */}
-      <QRange
-        label={
-          <span>
-            How many different companies did you <u>interview</u> with?<sup className="text-red-500">*</sup>
-          </span>
-        }
-        value={interviewedRange}
-        onPick={setInterviewedRange}
-        options={RANGE_INTERVIEW}
-      />
-
-      <button
-        disabled={disabled}
-        onClick={onNext}
-        className="mt-4 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700 disabled:opacity-60"
-      >
-        {TEXT.continue}
-      </button>
+      <QRange label={<span>How many roles did you <u>apply</u> for through Migrate Mate?<sup className="text-red-500">*</sup></span>} value={appliedRange} onPick={setAppliedRange} />
+      <QRange label={<span>How many companies did you <u>email</u> directly?<sup className="text-red-500">*</sup></span>} value={emailedRange} onPick={setEmailedRange} />
+      <QRange label={<span>How many different companies did you <u>interview</u> with?<sup className="text-red-500">*</sup></span>} value={interviewedRange} onPick={setInterviewedRange} options={RANGE_INTERVIEW} />
+      <button disabled={disabled} onClick={onNext} className="mt-4 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700 disabled:opacity-60">{TEXT.continue}</button>
     </>
   )
 }
 
 function QRange({
-  label,
-  value,
-  onPick,
-  options = RANGE_DEFAULT,
-}: {
-  label: ReactNode
-  value: Range | null
-  onPick: (r: Range) => void
-  options?: Range[]
-}) {
+  label, value, onPick, options = RANGE_DEFAULT,
+}: { label: ReactNode; value: Range | null; onPick: (r: Range) => void; options?: Range[] }) {
   return (
     <div className="mt-5">
       <label className="block text-sm text-gray-700">{label}</label>
       <div className="mt-2 grid grid-cols-4 gap-2">
         {options.map((r) => (
-          <button
-            key={r}
-            onClick={() => onPick(r)}
-            className={`rounded-xl border px-4 py-2 text-sm ${value === r ? 'border-violet-600 ring-2 ring-violet-200' : 'border-gray-300 hover:bg-gray-50'}`}
-          >
-            {r}
-          </button>
+          <button key={r} onClick={() => onPick(r)} className={`rounded-xl border px-4 py-2 text-sm ${value === r ? 'border-violet-600 ring-2 ring-violet-200' : 'border-gray-300 hover:bg-gray-50'}`}>{r}</button>
         ))}
       </div>
     </div>
   )
 }
 
-function YesText({
-  value, setValue, disabled, onNext,
-}: {
-  value: string
-  setValue: (s: string) => void
-  disabled: boolean
-  onNext: () => void
-}) {
+function YesText({ value, setValue, disabled, onNext }: { value: string; setValue: (s: string) => void; disabled: boolean; onNext: () => void }) {
   const count = value.trim().length
   return (
     <>
       <HeaderRow title={TEXT.yes_text_title} />
-      <p className="text-gray-600">
-        {TEXT.yes_text_hint}
-        <sup className="text-red-500">*</sup>
-      </p>
-      <textarea
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder={TEXT.yes_text_placeholder}
-        className="mt-4 h-28 w-full resize-none rounded-xl border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-violet-600"
-      />
+      <p className="text-gray-600">{TEXT.yes_text_hint}<sup className="text-red-500">*</sup></p>
+      <textarea value={value} onChange={(e) => setValue(e.target.value)} placeholder={TEXT.yes_text_placeholder} className="mt-4 h-28 w-full resize-none rounded-xl border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-violet-600" />
       <div className="mt-1 text-right text-xs text-gray-500">Min 25 characters ({count}/25)</div>
-      <button
-        disabled={disabled}
-        onClick={onNext}
-        className="mt-4 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700 disabled:opacity-60"
-      >
-        {TEXT.continue}
-      </button>
+      <button disabled={disabled} onClick={onNext} className="mt-4 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700 disabled:opacity-60">{TEXT.continue}</button>
     </>
   )
 }
 
-/** Step 3 gate — radio circles + violet CTA */
-function VisaGate({
-  foundViaMM,
-  companyLawyer,
-  setCompanyLawyer,
-  onContinue,
-}: {
-  foundViaMM: boolean
-  companyLawyer: boolean | null
-  setCompanyLawyer: (b: boolean) => void
-  onContinue: () => void
-}) {
+function VisaGate({ foundViaMM, companyLawyer, setCompanyLawyer, onContinue }: { foundViaMM: boolean; companyLawyer: boolean | null; setCompanyLawyer: (b: boolean) => void; onContinue: () => void }) {
   return (
     <>
       <HeaderRow title={foundViaMM ? TEXT.visa_mm_h1 : TEXT.visa_nom_h1} />
       {!foundViaMM && <p className="mb-2 text-gray-700">{TEXT.visa_nom_sub}</p>}
-
-      <label className="block text-sm text-gray-700">
-        {TEXT.visa_q}<sup className="text-red-500">*</sup>
-      </label>
+      <label className="block text-sm text-gray-700">{TEXT.visa_q}<sup className="text-red-500">*</sup></label>
       <div className="mt-3 space-y-3">
         <label className="flex items-center gap-3">
-          <input
-            type="radio"
-            name="companyLawyer"
-            checked={companyLawyer === true}
-            onChange={() => setCompanyLawyer(true)}
-          />
+          <input type="radio" name="companyLawyer" checked={companyLawyer === true} onChange={() => setCompanyLawyer(true)} />
           <span>Yes</span>
         </label>
         <label className="flex items-center gap-3">
-          <input
-            type="radio"
-            name="companyLawyer"
-            checked={companyLawyer === false}
-            onChange={() => setCompanyLawyer(false)}
-          />
+          <input type="radio" name="companyLawyer" checked={companyLawyer === false} onChange={() => setCompanyLawyer(false)} />
           <span>No</span>
         </label>
       </div>
-
-      <button
-        disabled={companyLawyer === null}
-        onClick={onContinue}
-        className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700 disabled:opacity-60"
-      >
-        {TEXT.complete_cancel}
-      </button>
+      <button disabled={companyLawyer === null} onClick={onContinue} className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700 disabled:opacity-60">{TEXT.complete_cancel}</button>
     </>
   )
 }
 
-/** Step 3 details — radios reflecting prior choice + conditional visa copy + violet CTA */
-function VisaDetails({
-  foundViaMM,
-  companyLawyer,
-  visaType,
-  setVisaType,
-  disabled,
-  onComplete,
-}: {
-  foundViaMM: boolean
-  companyLawyer: boolean
-  visaType: string
-  setVisaType: (v: string) => void
-  disabled: boolean
-  onComplete: () => Promise<void> | void
-}) {
+function VisaDetails({ foundViaMM, companyLawyer, visaType, setVisaType, disabled, onComplete }: { foundViaMM: boolean; companyLawyer: boolean; visaType: string; setVisaType: (v: string) => void; disabled: boolean; onComplete: () => Promise<void> | void }) {
   return (
     <>
       <HeaderRow title={foundViaMM ? TEXT.visa_mm_h1 : TEXT.visa_nom_h1} />
       {!foundViaMM && <p className="mb-2 text-gray-700">{TEXT.visa_nom_sub}</p>}
-
-      {/* Read-only radios mirroring previous answer */}
-      <div className="mb-3 text-sm text-gray-700">
-        {TEXT.visa_q}{' '}
-        <div className="mt-2 space-y-2">
-          <label className="flex items-center gap-3 opacity-70">
-            <input type="radio" checked={companyLawyer === true} readOnly />
-            <span>Yes</span>
-          </label>
-          <label className="flex items-center gap-3 opacity-70">
-            <input type="radio" checked={companyLawyer === false} readOnly />
-            <span>No</span>
-          </label>
-        </div>
-      </div>
-
-      {/* Helper + visa question varies by answer */}
-      {!companyLawyer && (
-        <p className="mt-1 text-gray-700">{TEXT.visa_partner_help}</p>
-      )}
-
-      <label className="mt-3 block text-sm text-gray-700">
-        {companyLawyer ? TEXT.visa_type_q_yes : TEXT.visa_type_q_no}
-        <sup className="text-red-500">*</sup>
-      </label>
-      <input
-        value={visaType}
-        onChange={(e) => setVisaType(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault() }}
-        placeholder="Enter visa type…"
-        className="mt-2 w-full rounded-xl border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-violet-600"
-      />
-
-      <button
-        disabled={disabled}
-        onClick={onComplete}
-        className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700 disabled:opacity-60"
-      >
-        {TEXT.complete_cancel}
-      </button>
+      {!companyLawyer && <p className="mt-1 text-gray-700">{TEXT.visa_partner_help}</p>}
+      <label className="mt-3 block text-sm text-gray-700">{companyLawyer ? TEXT.visa_type_q_yes : TEXT.visa_type_q_no}<sup className="text-red-500">*</sup></label>
+      <input value={visaType} onChange={(e) => setVisaType(e.target.value)} placeholder="Enter visa type…" className="mt-2 w-full rounded-xl border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-violet-600" />
+      <button disabled={disabled} onClick={onComplete} className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700 disabled:opacity-60">{TEXT.complete_cancel}</button>
     </>
   )
 }
@@ -695,9 +391,7 @@ function FinishCongrats({ title, body, onFinish }: { title: string; body: string
     <>
       <div className="mb-2 text-2xl font-semibold text-gray-900 md:text-3xl">{title}</div>
       <p className="mt-2 max-w-prose text-gray-700">{body}</p>
-      <button onClick={onFinish} className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700">
-        {TEXT.finish}
-      </button>
+      <button onClick={onFinish} className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700">{TEXT.finish}</button>
     </>
   )
 }
@@ -705,10 +399,7 @@ function FinishCongrats({ title, body, onFinish }: { title: string; body: string
 function FinishMihailo({ onFinish }: { onFinish: () => void }) {
   return (
     <>
-      <div className="mb-2 text-2xl font-semibold text-gray-900 md:text-3xl">
-        {TEXT.finish_nom_title}
-      </div>
-
+      <div className="mb-2 text-2xl font-semibold text-gray-900 md:text-3xl">{TEXT.finish_nom_title}</div>
       <div className="mt-4 rounded-xl border border-gray-200 p-4">
         <div className="flex items-center gap-3">
           <img src="/mihailo.jpg" alt="Mihailo Bozic" className="h-10 w-10 rounded-full object-cover" />
@@ -723,110 +414,7 @@ function FinishMihailo({ onFinish }: { onFinish: () => void }) {
           <p>Keep an eye on your inbox, I’ll be in touch shortly.</p>
         </div>
       </div>
-
-      <button onClick={onFinish} className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700">
-        {TEXT.finish}
-      </button>
-    </>
-  )
-}
-
-/* NO-branch components unchanged below (OfferCard, AcceptedCard, ReasonForm) */
-function OfferCard({
-  isB,
-  prices,
-  onAccept,
-  onDecline,
-}: {
-  isB: boolean
-  prices: { monthly: number; annual: number }
-  onAccept: () => Promise<void> | void
-  onDecline: () => void
-}) {
-  return (
-    <>
-      <button onClick={onDecline} className="mb-4 w-fit text-sm text-gray-500 hover:text-gray-900">← Back</button>
-      <h2 className="text-2xl font-semibold text-gray-900 md:text-3xl">{TEXT.offerTitle}</h2>
-      <p className="mt-2 text-gray-600">{TEXT.offerBody}</p>
-      <div className="mt-5 space-y-3">
-        <button onClick={onAccept} className="w-full rounded-xl bg-green-600 px-4 py-3 font-medium text-white hover:bg-green-700">
-          {isVariantB ? `Get $10 off until you find a job — $${prices.monthly}/mo (was $25) / $${prices.annual}/mo (was $29)` : TEXT.offerAcceptA}
-        </button>
-        <button onClick={onDecline} className="w-full rounded-xl border border-gray-300 px-4 py-3 hover:bg-gray-50">
-          {TEXT.offerDecline}
-        </button>
-      </div>
-    </>
-  )
-}
-
-function AcceptedCard({ onFinish }: { onFinish: () => void }) {
-  return (
-    <>
-      <h2 className="text-2xl font-semibold text-gray-900 md:text-3xl">{TEXT.acceptedTitle}</h2>
-      <p className="mt-2 text-gray-600">{TEXT.acceptedBody}</p>
-      <button onClick={onFinish} className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700">
-        {TEXT.acceptedCta}
-      </button>
-    </>
-  )
-}
-
-function ReasonForm({
-  reasonKey,
-  setReasonKey,
-  reasonText,
-  setReasonText,
-  isB,
-  loading,
-  onKeep,
-  onCancel,
-}: {
-  reasonKey: string
-  setReasonKey: (v: string) => void
-  reasonText: string
-  setReasonText: (v: string) => void
-  isB: boolean
-  loading: boolean
-  onKeep: () => Promise<void> | void
-  onCancel: () => Promise<void> | void
-}) {
-  const REASONS = [
-    { key: 'too_expensive', label: 'It’s too expensive' },
-    { key: 'not_using', label: 'I don’t use it enough' },
-    { key: 'missing_features', label: 'Missing a feature I need' },
-    { key: 'technical_issues', label: 'Technical issues' },
-    { key: 'other', label: 'Other' },
-  ]
-  return (
-    <>
-      <button onClick={() => history.back()} className="mb-4 w-fit text-sm text-gray-500 hover:text-gray-900">← Back</button>
-      <h3 className="text-2xl font-semibold text-gray-900 md:text-3xl">{TEXT.reasonTitle}</h3>
-      <div className="mt-4 space-y-3">
-        {REASONS.map((r) => (
-          <label key={r.key} className="flex items-center gap-3">
-            <input type="radio" name="reason" value={r.key} checked={reasonKey === r.key} onChange={() => setReasonKey(r.key)} />
-            <span>{r.label}</span>
-          </label>
-        ))}
-      </div>
-      <textarea
-        value={reasonText}
-        onChange={(e) => setReasonText(e.target.value)}
-        placeholder="Anything else you’d like to share? (optional)"
-        maxLength={500}
-        className="mt-4 h-28 w-full resize-none rounded-xl border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-violet-600"
-      />
-      <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
-        {isB && (
-          <button onClick={onKeep} className="rounded-xl bg-green-600 px-4 py-3 font-medium text-white hover:bg-green-700">
-            OK I’ll stay ($ off)
-          </button>
-        )}
-        <button disabled={loading} onClick={onCancel} className="rounded-xl bg-red-600 px-4 py-3 font-medium text-white hover:bg-red-700 disabled:opacity-60">
-          {loading ? 'Canceling…' : 'Complete cancellation'}
-        </button>
-      </div>
+      <button onClick={onFinish} className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700">{TEXT.finish}</button>
     </>
   )
 }
