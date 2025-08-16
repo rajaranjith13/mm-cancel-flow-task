@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS cancellations (
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   subscription_id UUID REFERENCES subscriptions(id) ON DELETE CASCADE,
   downsell_variant TEXT NOT NULL CHECK (downsell_variant IN ('A', 'B')),
-  reason TEXT,
+  reason_key TEXT,
+  reason_text TEXT,
   accepted_downsell BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -65,4 +66,4 @@ INSERT INTO subscriptions (user_id, monthly_price, status) VALUES
   ('550e8400-e29b-41d4-a716-446655440001', 2500, 'active'), -- $25.00
   ('550e8400-e29b-41d4-a716-446655440002', 2900, 'active'), -- $29.00
   ('550e8400-e29b-41d4-a716-446655440003', 2500, 'active')  -- $25.00
-ON CONFLICT DO NOTHING; 
+ON CONFLICT DO NOTHING;

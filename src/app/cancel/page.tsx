@@ -1,11 +1,12 @@
-import CancelFlow from './CancelFlow'
+// src/app/cancel/page.tsx
+import CancellationRoot from './CancellationRoot'
 import { supabaseAdmin } from '@/lib/supabaseServer'
 import { secureAB, type Variant } from '@/lib/ab'
 
 const MOCK_USER_ID = process.env.MOCK_USER_ID! // seeded user id
 
-async function ensureSession(userId: string) {
-  // get the user’s latest active/pending subscription
+async function ensureSession(userId: string, variantOverride?: Variant) {
+  // 1) get latest active/pending subscription
   const { data: sub, error: subErr } = await supabaseAdmin
     .from('subscriptions')
     .select('id, monthly_price, status, created_at')
@@ -18,7 +19,7 @@ async function ensureSession(userId: string) {
   if (subErr) throw subErr
   if (!sub) throw new Error('No subscription for user')
 
-  // do we already have a cancellation row for this subscription?
+  // 2) existing cancellation for this sub?
   const { data: existing } = await supabaseAdmin
     .from('cancellations')
     .select('id, downsell_variant, created_at')
@@ -32,11 +33,19 @@ async function ensureSession(userId: string) {
   let variant: Variant
 
   if (existing) {
+    // Respect persisted variant unless an explicit override is used.
+    variant = variantOverride ?? (existing.downsell_variant as Variant)
     cancellationId = existing.id
-    variant = existing.downsell_variant as Variant
+
+    if (variantOverride && variantOverride !== existing.downsell_variant) {
+      await supabaseAdmin
+        .from('cancellations')
+        .update({ downsell_variant: variantOverride })
+        .eq('id', existing.id)
+        .eq('user_id', userId)
+    }
   } else {
-    variant = secureAB()
-    // assign variant and persist once
+    variant = variantOverride ?? secureAB()
     const ins = await supabaseAdmin
       .from('cancellations')
       .insert({
@@ -48,7 +57,7 @@ async function ensureSession(userId: string) {
       .single()
     cancellationId = ins.data!.id
 
-    // mark subscription pending cancellation when entering the flow
+    // mark pending when entering flow (your original behavior)
     await supabaseAdmin
       .from('subscriptions')
       .update({ status: 'pending_cancellation' })
@@ -58,22 +67,29 @@ async function ensureSession(userId: string) {
   return { sub, variant, cancellationId }
 }
 
-export default async function Page() {
-  const { sub, variant, cancellationId } = await ensureSession(MOCK_USER_ID)
+// Add searchParams so we can accept /cancel?force=A|B in dev.
+export default async function Page({
+  searchParams,
+}: {
+  searchParams?: { force?: 'A' | 'B' }
+}) {
+  const force = searchParams?.force
+  const variantOverride = force === 'A' || force === 'B' ? force : undefined
 
-  // Prices for the UI text ($25/$29 → show $15/$19 for B)
+  const { sub, variant, cancellationId } = await ensureSession(MOCK_USER_ID, variantOverride)
+
   const controlMonthly = sub.monthly_price / 100 // 25 or 29
   const prices = {
-    control: { monthly: controlMonthly, annual: 29 }, // annual label only; UI shows both
+    control: { monthly: controlMonthly, annual: 29 },
     b: {
       monthly: controlMonthly === 25 ? 15 : 19,
-      annual: controlMonthly === 25 ? 15 : 19, // shown in label as “was $29”
+      annual: controlMonthly === 25 ? 15 : 19, // label shows “was $29”
     },
   }
 
   return (
     <div className="min-h-dvh bg-gray-50">
-      <CancelFlow
+      <CancellationRoot
         variant={variant}
         cancellationId={cancellationId}
         plan="pro"
