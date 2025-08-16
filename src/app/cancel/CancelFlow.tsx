@@ -56,7 +56,7 @@ const TEXT = {
   visa_nom_sub: 'Even if it wasn’t through Migrate Mate, let us help get your visa sorted.',
   visa_q: 'Is your company providing an immigration lawyer to help with your visa?',
 
-  // ⬇️ New keys for Step 3 details
+  // Step 3 details copy
   visa_partner_help: 'We can connect you with one of our trusted partners.',
   visa_type_q_yes: 'What visa will you be applying for?',
   visa_type_q_no: 'Which visa would you like to apply for?',
@@ -262,7 +262,8 @@ export default function CancelFlow(p: Props) {
                 disabled={!visaOK || !csrfToken}
                 onComplete={async () => {
                   await finalizeYes('company_yes')
-                  setStep(foundViaMM ? 'finish_mm' : 'finish_nom')
+                  // Always go to normal completion when lawyer = YES
+                  setStep('finish_mm')
                 }}
               />
             )}
@@ -275,7 +276,8 @@ export default function CancelFlow(p: Props) {
                 disabled={!visaOK || !csrfToken}
                 onComplete={async () => {
                   await finalizeYes('company_no')
-                  setStep(foundViaMM ? 'finish_mm' : 'finish_nom')
+                  // Always go to Mihailo card when lawyer = NO
+                  setStep('finish_nom')
                 }}
               />
             )}
