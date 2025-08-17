@@ -191,13 +191,13 @@ export default function NoJobFlow(p: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 md:p-8">
       <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl ring-1 ring-black/5">
-        
+
         <div className="relative flex items-center justify-center border-b px-6 py-3 md:px-8">
           {!isFinished ? (
             <button onClick={goBack} className="absolute left-6 text-sm text-gray-600 hover:text-gray-900">{'<'} Back</button>
           ) : <span className="absolute left-6 w-[56px]" />}
 
-          
+
           {!isFinished ? (
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-gray-800">{TEXT.modalTitle}</span>
@@ -215,11 +215,11 @@ export default function NoJobFlow(p: Props) {
           <button onClick={() => (window.location.href = '/')} className="absolute right-6 rounded-full p-1 text-gray-500 hover:bg-gray-100">×</button>
         </div>
 
-        
+
         <div className="grid grid-cols-1 gap-6 p-5 md:grid-cols-2 md:p-8">
           <div className="flex flex-col">
 
-            
+
             {step === 'offer' && (
               <OfferCard
                 priceNow={priceNow}
@@ -229,17 +229,17 @@ export default function NoJobFlow(p: Props) {
               />
             )}
 
-            
+
             {step === 'accepted_confirm' && (
               <AcceptedConfirm onNext={() => setStep('accepted_jobs')} />
             )}
 
-            
+
             {step === 'accepted_jobs' && (
               <AcceptedJobs onExit={() => (window.location.href = '/?kept=1')} />
             )}
 
-            
+
             {step === 'usage_short' && (
               <UsageScreen
                 title={TEXT.usageH1}
@@ -259,7 +259,7 @@ export default function NoJobFlow(p: Props) {
               />
             )}
 
-            
+
             {step === 'reasons' && (
               <ReasonsChooser
                 reasonKey={reasonKey}
@@ -272,7 +272,7 @@ export default function NoJobFlow(p: Props) {
               />
             )}
 
-            
+
             {step === 'reason_too_expensive' && (
               <ReasonFollowUp
                 heading={TEXT.reasonsH1}
@@ -394,7 +394,7 @@ export default function NoJobFlow(p: Props) {
               />
             )}
 
-            
+
             {step === 'finish' && (
               <FinishCard onBackToJobs={() => (window.location.href = '/?canceled=1')} />
             )}
@@ -457,7 +457,7 @@ function OfferCard({
       <Header title={TEXT.offerTitle} />
       <p className="mt-1 text-gray-600">{TEXT.offerBody}</p>
 
-      
+
       <div className="mt-5 rounded-2xl border border-violet-200 bg-violet-100/70 p-6 text-center">
         <div className="text-xl md:text-2xl font-semibold">
           Here’s 50% off until you find a job.
@@ -524,42 +524,104 @@ function AcceptedJobs({ onExit }: { onExit: () => void }) {
 
       <div className="mt-5 rounded-2xl border p-4">
         <div className="flex items-start gap-3">
-          <div className="mt-1 h-10 w-10 rounded-full bg-gray-200" />
-          <div className="flex-1">
-            <div className="text-sm font-medium">Automation Controls Engineer</div>
-            <div className="text-xs text-gray-600">Randstad USA • Memphis, Tennessee</div>
+          <Image src="/logos/randstad.png" alt="Randstad" width={40} height={40} className="rounded" />
 
-            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-700">
-              <span className="rounded-full border px-2 py-0.5">Full Time</span>
-              <span className="rounded-full border px-2 py-0.5">Associate</span>
-              <span className="rounded-full border px-2 py-0.5">Bachelor’s</span>
-              <span className="rounded-full border px-2 py-0.5">On-site</span>
-              <span className="rounded-full border px-2 py-0.5">NEW JOB</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold leading-5">Automation Controls Engineer</div>
+                <div className="text-xs text-gray-600 leading-5">Randstad USA • Memphis, Tennessee</div>
+              </div>
+              <div className="hidden sm:flex flex-wrap gap-2 text-[11px] text-gray-700">
+                <TopChip>Full Time</TopChip>
+                <TopChip>Associate</TopChip>
+                <TopChip>Bachelor’s</TopChip>
+                <TopChip>On-site</TopChip>
+                <TopChip>NEW JOB</TopChip>
+              </div>
             </div>
 
-            <div className="mt-2 text-sm">$150,000/yr – $170,000/yr</div>
-            <div className="mt-2 text-[11px] text-gray-600">Visas sponsored by company in the last year • Green Card • H-1B • TN • OPT</div>
+            <div className="sm:hidden mt-2 flex flex-wrap gap-2 text-[11px] text-gray-700">
+              <TopChip>Full Time</TopChip>
+              <TopChip>Associate</TopChip>
+              <TopChip>Bachelor’s</TopChip>
+              <TopChip>On-site</TopChip>
+            </div>
 
-            <p className="mt-3 line-clamp-3 text-sm text-gray-700">
+            <div className="mt-2 flex items-baseline gap-3">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">New Job</span>
+              <span className="text-sm">$150,000/yr – $170,000/yr</span>
+            </div>
+
+            <div className="mt-2 flex items-center justify-between text-[11px] text-gray-600">
+              <span>Visas sponsored by company in the last year</span>
+              <span className="text-gray-400">2025</span>
+            </div>
+            <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-gray-700">
+              <VisaChip label="Green Card" icon={<span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />} />
+              <VisaChip label="H-1B" />
+              <VisaChip label="TN" />
+              <VisaChip label="OPT" icon={<CapIcon />} />
+            </div>
+
+            <p className="mt-3 line-clamp-3 text-sm leading-6 text-gray-700">
               The Electrical Automation Controls Engineer will design, implement, and maintain industrial automation systems,
               specializing in PLC programming using Siemens TIA Portal. The ideal candidate should have a Bachelor’s degree in
               Electrical Engineering and at least 4 years of experience. Key benefits include comprehensive healthcare and retirement plans.
             </p>
 
-            <div className="mt-4 flex gap-2">
-              <button className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50">Save Job</button>
-              <button className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700">Apply</button>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <a
+                href="mailto:barbara.tuck@randstadusa.com"
+                className="truncate text-xs text-blue-600 hover:underline"
+              >
+                Company via contact: barbara.tuck@randstadusa.com
+              </a>
+              <div className="flex gap-2">
+                <button className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50">Save Job</button>
+                <button className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700">
+                  Apply
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <button onClick={onExit} className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700">
+      <button
+        onClick={onExit}
+        className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700"
+      >
         {TEXT.acceptedCTA}
       </button>
     </>
   )
 }
+
+function TopChip({ children }: { children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center rounded-full border px-2 py-0.5">{children}</span>
+  )
+}
+
+function VisaChip({ label, icon }: { label: string; icon?: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5">
+      {icon ? <span className="shrink-0">{icon}</span> : null}
+      {label}
+    </span>
+  )
+}
+
+function CapIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3 w-3">
+      <path d="M12 3 2 8l10 5 8-4.1V15h2V8L12 3zm-6 9v3.5c0 .6 2.7 2.5 6 2.5s6-1.9 6-2.5V12l-6 3-6-3z" fill="currentColor" />
+    </svg>
+  )
+}
+
+
 
 function UsageScreen(props: {
   title: string
@@ -601,7 +663,7 @@ function UsageScreen(props: {
         <p className="mt-3 text-sm text-red-600">{TEXT.reasonsNeedSelect}</p>
       )}
 
-      
+
       <div className="mt-5 flex flex-col gap-3">
         <button onClick={props.onOfferClick} className="rounded-xl bg-green-600 px-4 py-3 font-medium text-white hover:bg-green-700">
           <span className="mr-1">Get 50% off |</span>
