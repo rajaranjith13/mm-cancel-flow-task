@@ -99,7 +99,7 @@ export default function CancelFlow(p: Props) {
   }, [step])
   const showHeaderStepper = YES_HEADER_STEPS.includes(step)
   const isFinished = step === 'finish_mm' || step === 'finish_nom'
-  const showBack = !(step === 'yes_survey' || isFinished)
+  const showBack = !isFinished
 
   function stepBack(s: Step): Step {
     switch (s) {
@@ -107,6 +107,7 @@ export default function CancelFlow(p: Props) {
       case 'visa_gate':        return 'yes_text'
       case 'visa_company_yes':
       case 'visa_company_no':  return 'visa_gate'
+      case 'yes_survey':       window.location.reload(); return 'yes_survey'
       default:                 return 'yes_survey'
     }
   }
