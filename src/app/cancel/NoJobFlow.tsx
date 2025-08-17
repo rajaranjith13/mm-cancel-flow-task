@@ -30,7 +30,6 @@ type Step =
   | 'accepted_confirm'
   | 'accepted_jobs'
   | 'usage_short'
-  | 'usage_plus_reason'
   | 'reasons'
   | 'reason_too_expensive'
   | 'reason_platform'
@@ -41,7 +40,6 @@ type Step =
 
 const TEXT = {
   modalTitle: 'Subscription Cancellation',
-  continuedTitle: 'Subscription Continued',
   cancelledTitle: 'Subscription Cancelled',
 
   offerTitle: 'We built this to help you land the job, this makes it a little easier.',
@@ -55,7 +53,7 @@ const TEXT = {
 
   usageH1: 'Help us understand how you were using Migrate Mate.',
   usageCoach: "Mind letting us know why you’re cancelling? It helps us understand your experience and improve the platform.*",
-  usageOfferInline: (priceNow: string, was: number) => `Get 50% off | $${priceNow} $${was}`,
+  usageOfferInline: (priceNow: string, was: number) => `Get 50% off | $${priceNow} ${was}`,
 
   reasonsH1: "What’s the main reason for cancelling?",
   reasonsSub: 'Please take a minute to let us know why:',
@@ -94,7 +92,6 @@ export default function NoJobFlow(p: Props) {
     return () => { dead = true }
   }, [])
 
-  // usage ranges
   const [appliedRange, setAppliedRange] = useState<Range | null>(null)
   const [emailedRange, setEmailedRange] = useState<Range | null>(null)
   const [interviewedRange, setInterviewedRange] = useState<Range | null>(null)
@@ -104,17 +101,19 @@ export default function NoJobFlow(p: Props) {
   )
   const [usageTried, setUsageTried] = useState(false)
 
-  // reasons + details
   const [reasonKey, setReasonKey] = useState<ReasonKey | ''>('')
   const [reasonText, setReasonText] = useState('')
   const min25 = reasonText.trim().length >= 25
+  const [reasonsTried, setReasonsTried] = useState(false)
+  const [detailTried, setDetailTried] = useState(false)
+
   const [loading, setLoading] = useState(false)
 
   const isAccepted = step === 'accepted_confirm' || step === 'accepted_jobs'
   const isFinished = step === 'finish'
   const headerStepIndex =
     step === 'offer' ? 1 :
-    step === 'usage_short' || step === 'usage_plus_reason' ? 2 :
+    step === 'usage_short' ? 2 :
     step === 'reasons' ||
     step === 'reason_too_expensive' ||
     step === 'reason_platform' ||
@@ -125,8 +124,7 @@ export default function NoJobFlow(p: Props) {
   function goBack() {
     if (step === 'offer') return window.location.reload()
     if (step === 'usage_short') return setStep(p.variant === 'B' ? 'offer' : 'usage_short')
-    if (step === 'usage_plus_reason') return setStep('usage_short')
-    if (step === 'reasons') return setStep('usage_plus_reason')
+    if (step === 'reasons') return setStep('usage_short')
     if (
       step === 'reason_too_expensive' ||
       step === 'reason_platform' ||
@@ -153,6 +151,7 @@ export default function NoJobFlow(p: Props) {
   }
 
   function proceedFromReasons() {
+    setReasonsTried(true)
     if (!reasonKey) return
     if (reasonKey === 'too_expensive') return setStep('reason_too_expensive')
     if (reasonKey === 'platform_not_helpful') return setStep('reason_platform')
@@ -161,7 +160,10 @@ export default function NoJobFlow(p: Props) {
     return setStep('reason_other')
   }
 
-  async function completeCancellation(extraDetail: string) {
+  async function completeCancellation(extraDetail: string, needsMin25: boolean) {
+    setDetailTried(true)
+    if (needsMin25 && extraDetail.trim().length < 25) return
+
     if (!csrfToken) return
     setLoading(true)
     const payload = {
@@ -184,42 +186,40 @@ export default function NoJobFlow(p: Props) {
     if (res.ok) setStep('finish')
   }
 
+  const showSteps = !isAccepted && !isFinished
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 md:p-8">
       <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl ring-1 ring-black/5">
+        
         <div className="relative flex items-center justify-center border-b px-6 py-3 md:px-8">
           {!isFinished ? (
             <button onClick={goBack} className="absolute left-6 text-sm text-gray-600 hover:text-gray-900">{'<'} Back</button>
           ) : <span className="absolute left-6 w-[56px]" />}
 
-          <div className="flex items-center gap-3">
-            <div className="text-sm font-medium text-gray-800">
-              {isFinished ? TEXT.cancelledTitle : isAccepted ? TEXT.continuedTitle : TEXT.modalTitle}
+          
+          {!isFinished ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-800">{TEXT.modalTitle}</span>
+              {showSteps && <Stepper index={headerStepIndex} />}
             </div>
-
-            {isFinished ? (
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                {[1,2,3].map(n => <span key={n} className="h-1.5 w-6 rounded-full bg-emerald-500" />)}
-                <span>Completed</span>
-              </div>
-            ) : !isAccepted && (
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                {[1,2,3].map(n => {
-                  const cls = n < headerStepIndex ? 'bg-emerald-500' : n === headerStepIndex ? 'bg-gray-400' : 'bg-gray-300'
-                  return <span key={n} className={`h-1.5 w-6 rounded-full ${cls}`} />
-                })}
-                <span>Step {headerStepIndex} of 3</span>
-              </div>
-            )}
-          </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-800">
+                Subscription Cancellation</span>
+              <CompletedBars />
+              <span className="text-xs text-gray-500">Completed</span>
+            </div>
+          )}
 
           <button onClick={() => (window.location.href = '/')} className="absolute right-6 rounded-full p-1 text-gray-500 hover:bg-gray-100">×</button>
         </div>
 
+        
         <div className="grid grid-cols-1 gap-6 p-5 md:grid-cols-2 md:p-8">
           <div className="flex flex-col">
 
-            {/* 1. Offer (Variant B only) */}
+            
             {step === 'offer' && (
               <OfferCard
                 priceNow={priceNow}
@@ -229,37 +229,18 @@ export default function NoJobFlow(p: Props) {
               />
             )}
 
-            {/* 2. Offer accepted confirmation */}
+            
             {step === 'accepted_confirm' && (
               <AcceptedConfirm onNext={() => setStep('accepted_jobs')} />
             )}
 
-            {/* 3. Offer accepted – jobs feed */}
+            
             {step === 'accepted_jobs' && (
               <AcceptedJobs onExit={() => (window.location.href = '/?kept=1')} />
             )}
 
-            {/* 4. Usage survey (short) – no coach line */}
+            
             {step === 'usage_short' && (
-              <UsageScreen
-                title={TEXT.usageH1}
-                coachLine=""
-                appliedRange={appliedRange} setAppliedRange={setAppliedRange}
-                emailedRange={emailedRange} setEmailedRange={setEmailedRange}
-                interviewedRange={interviewedRange} setInterviewedRange={setInterviewedRange}
-                tried={usageTried}
-                priceNow={priceNow}
-                was={controlMonthly}
-                onOfferClick={handleAccept}
-                onContinue={() => {
-                  setUsageTried(true)
-                  setStep('usage_plus_reason')
-                }}
-              />
-            )}
-
-            {/* 5. Usage survey + coach line */}
-            {step === 'usage_plus_reason' && (
               <UsageScreen
                 title={TEXT.usageH1}
                 coachLine={TEXT.usageCoach}
@@ -272,24 +253,26 @@ export default function NoJobFlow(p: Props) {
                 onOfferClick={handleAccept}
                 onContinue={() => {
                   if (!usageValid) { setUsageTried(true); return }
+                  setReasonsTried(false)
                   setStep('reasons')
                 }}
               />
             )}
 
-            {/* 6. Choose reason */}
+            
             {step === 'reasons' && (
               <ReasonsChooser
                 reasonKey={reasonKey}
-                setReasonKey={(k) => setReasonKey(k)}
+                setReasonKey={(k) => { setReasonKey(k); setReasonsTried(false) }}
                 priceNow={priceNow}
                 was={controlMonthly}
                 onOfferClick={handleAccept}
                 onProceed={proceedFromReasons}
+                tried={reasonsTried}
               />
             )}
 
-            {/* 7–11. Reason detail screens */}
+            
             {step === 'reason_too_expensive' && (
               <ReasonFollowUp
                 heading={TEXT.reasonsH1}
@@ -299,14 +282,20 @@ export default function NoJobFlow(p: Props) {
                 priceNow={priceNow}
                 was={controlMonthly}
                 text={reasonText}
-                setText={setReasonText}
+                setText={(t) => { setDetailTried(false); setReasonText(t) }}
                 showCharCount={false}
-                error={reasonText.trim() === ''}
-                errorMsg="Please add a price so we can understand."
+
+                showError={
+                  detailTried && !/^\d+(\.\d{1,2})?$/.test(reasonText.trim())
+                }
+                errorMsg="Please enter a valid number (e.g., 12 or 12.50)."
                 onOfferClick={handleAccept}
                 onComplete={() => {
-                  if (!reasonText.trim()) return
-                  completeCancellation(reasonText)
+                  setDetailTried(true)
+                  const s = reasonText.trim()
+                  const ok = /^\d+(\.\d{1,2})?$/.test(s)
+                  if (!ok) return
+                  completeCancellation(s, false)
                 }}
                 loading={loading}
                 inputKind="money"
@@ -322,14 +311,15 @@ export default function NoJobFlow(p: Props) {
                 priceNow={priceNow}
                 was={controlMonthly}
                 text={reasonText}
-                setText={setReasonText}
+                setText={(t) => { setDetailTried(false); setReasonText(t) }}
                 showCharCount
-                error={!min25}
+                showError={detailTried && !min25}
                 errorMsg={TEXT.please25}
                 onOfferClick={handleAccept}
                 onComplete={() => {
+                  setDetailTried(true)
                   if (!min25) return
-                  completeCancellation(reasonText)
+                  completeCancellation(reasonText, true)
                 }}
                 loading={loading}
               />
@@ -344,14 +334,15 @@ export default function NoJobFlow(p: Props) {
                 priceNow={priceNow}
                 was={controlMonthly}
                 text={reasonText}
-                setText={setReasonText}
+                setText={(t) => { setDetailTried(false); setReasonText(t) }}
                 showCharCount
-                error={!min25}
+                showError={detailTried && !min25}
                 errorMsg={TEXT.please25}
                 onOfferClick={handleAccept}
                 onComplete={() => {
+                  setDetailTried(true)
                   if (!min25) return
-                  completeCancellation(reasonText)
+                  completeCancellation(reasonText, true)
                 }}
                 loading={loading}
               />
@@ -366,14 +357,15 @@ export default function NoJobFlow(p: Props) {
                 priceNow={priceNow}
                 was={controlMonthly}
                 text={reasonText}
-                setText={setReasonText}
+                setText={(t) => { setDetailTried(false); setReasonText(t) }}
                 showCharCount
-                error={!min25}
+                showError={detailTried && !min25}
                 errorMsg={TEXT.please25}
                 onOfferClick={handleAccept}
                 onComplete={() => {
+                  setDetailTried(true)
                   if (!min25) return
-                  completeCancellation(reasonText)
+                  completeCancellation(reasonText, true)
                 }}
                 loading={loading}
               />
@@ -388,20 +380,21 @@ export default function NoJobFlow(p: Props) {
                 priceNow={priceNow}
                 was={controlMonthly}
                 text={reasonText}
-                setText={setReasonText}
+                setText={(t) => { setDetailTried(false); setReasonText(t) }}
                 showCharCount
-                error={!min25}
+                showError={detailTried && !min25}
                 errorMsg={TEXT.please25}
                 onOfferClick={handleAccept}
                 onComplete={() => {
+                  setDetailTried(true)
                   if (!min25) return
-                  completeCancellation(reasonText)
+                  completeCancellation(reasonText, true)
                 }}
                 loading={loading}
               />
             )}
 
-            {/* 12. Finish */}
+            
             {step === 'finish' && (
               <FinishCard onBackToJobs={() => (window.location.href = '/?canceled=1')} />
             )}
@@ -423,7 +416,34 @@ export default function NoJobFlow(p: Props) {
   )
 }
 
-/* ——— pieces ——— */
+
+
+function Stepper({ index }: { index: number }) {
+  return (
+    <div className="flex items-center gap-2 text-xs text-gray-500">
+      <div className="flex items-center gap-2">
+        {[1, 2, 3].map((n) => {
+          const cls =
+            n < index ? 'bg-emerald-500'
+            : n === index ? 'bg-gray-400'
+            : 'bg-gray-300'
+          return <span key={n} className={`h-1.5 w-6 rounded-full ${cls}`} />
+        })}
+      </div>
+      <span>Step {index} of 3</span>
+    </div>
+  )
+}
+
+function CompletedBars() {
+  return (
+    <div className="flex items-center gap-2">
+      {[1,2,3].map(n => <span key={n} className="h-1.5 w-6 rounded-full bg-emerald-500" />)}
+    </div>
+  )
+}
+
+
 
 function Header({ title }: { title: string }) {
   return <h2 className="mb-4 text-2xl font-semibold text-gray-900 md:text-3xl">{title}</h2>
@@ -436,21 +456,38 @@ function OfferCard({
     <>
       <Header title={TEXT.offerTitle} />
       <p className="mt-1 text-gray-600">{TEXT.offerBody}</p>
-      <div className="mt-5 rounded-2xl border border-violet-200 bg-violet-100/70 p-4">
-        <div className="text-lg">
-          Here’s <span className="font-semibold underline">50% off</span> until you find a job.
+
+      
+      <div className="mt-5 rounded-2xl border border-violet-200 bg-violet-100/70 p-6 text-center">
+        <div className="text-xl md:text-2xl font-semibold">
+          Here’s 50% off until you find a job.
         </div>
-        <div className="mt-1 flex items-baseline gap-3">
-          <div className="text-xl font-semibold text-violet-700">${priceNow}<span className="text-base font-normal">/month</span></div>
-          <div className="text-sm text-gray-500 line-through">${was}/month</div>
+
+        <div className="mt-3 flex items-baseline justify-center gap-2">
+          <div className="text-2xl font-semibold text-violet-700">
+            ${priceNow}<span className="text-base font-normal">/month</span>
+          </div>
+          <div className="text-sm text-gray-500">
+            <span className="line-through">${was}/month</span>
+          </div>
         </div>
-        <button onClick={onAccept} className="mt-3 w-full rounded-xl bg-green-600 px-4 py-3 font-medium text-white hover:bg-green-700">
+
+        <button
+          onClick={onAccept}
+          className="mt-4 w-full rounded-xl bg-green-600 px-4 py-3 font-medium text-white hover:bg-green-700"
+        >
           {TEXT.getOffCTA}
         </button>
-        <div className="mt-2 text-center text-xs text-gray-500">You won’t be charged until your next billing date.</div>
+
+        <div className="mt-2 text-center text-xs text-gray-500">
+          You won’t be charged until your next billing date.
+        </div>
       </div>
 
-      <button onClick={onDecline} className="mt-5 w-full rounded-xl border border-gray-300 px-4 py-3 hover:bg-gray-50">
+      <button
+        onClick={onDecline}
+        className="mt-5 w-full rounded-xl border border-gray-300 px-4 py-3 hover:bg-gray-50"
+      >
         {TEXT.noThanks}
       </button>
     </>
@@ -461,11 +498,18 @@ function AcceptedConfirm({ onNext }: { onNext: () => void }) {
   return (
     <>
       <Header title={TEXT.acceptedH1} />
-      <p className="mt-2 text-gray-600">{TEXT.acceptedBody}</p>
+      <p className="mt-2 font-semibold text-gray-900 text-lg md:text-xl">
+        You’re still on the path to your dream role.{' '}
+        <span className="text-violet-700">Let’s make it happen together!</span>
+      </p>
       <p className="mt-4 text-sm text-gray-600">
         You’ve got XX days left on your current plan. Starting from XX date, your monthly payment will be $12.50.
       </p>
-      <button onClick={onNext} className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700">
+      <p className="mt-1 text-xs text-gray-500">You can cancel anytime before then.</p>
+      <button
+        onClick={onNext}
+        className="mt-6 w-full rounded-xl bg-violet-600 px-4 py-3 font-medium text-white hover:bg-violet-700"
+      >
         {TEXT.acceptedCTA}
       </button>
     </>
@@ -488,7 +532,7 @@ function AcceptedJobs({ onExit }: { onExit: () => void }) {
             <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-700">
               <span className="rounded-full border px-2 py-0.5">Full Time</span>
               <span className="rounded-full border px-2 py-0.5">Associate</span>
-              <span className="rounded-full border px-2 py-0.5">Bachelor's</span>
+              <span className="rounded-full border px-2 py-0.5">Bachelor’s</span>
               <span className="rounded-full border px-2 py-0.5">On-site</span>
               <span className="rounded-full border px-2 py-0.5">NEW JOB</span>
             </div>
@@ -498,7 +542,7 @@ function AcceptedJobs({ onExit }: { onExit: () => void }) {
 
             <p className="mt-3 line-clamp-3 text-sm text-gray-700">
               The Electrical Automation Controls Engineer will design, implement, and maintain industrial automation systems,
-              specializing in PLC programming using Siemens TIA Portal. The ideal candidate should have a Bachelor's degree in
+              specializing in PLC programming using Siemens TIA Portal. The ideal candidate should have a Bachelor’s degree in
               Electrical Engineering and at least 4 years of experience. Key benefits include comprehensive healthcare and retirement plans.
             </p>
 
@@ -534,9 +578,7 @@ function UsageScreen(props: {
   return (
     <>
       <Header title={props.title} />
-      {props.coachLine ? (
-        <p className="mb-2 text-sm text-red-600">{props.coachLine}</p>
-      ) : null}
+      <p className="mb-2 text-sm text-gray-600">{props.coachLine}</p>
 
       <QRange
         label={<span>How many roles did you <u>apply</u> for through Migrate Mate?</span>}
@@ -559,9 +601,12 @@ function UsageScreen(props: {
         <p className="mt-3 text-sm text-red-600">{TEXT.reasonsNeedSelect}</p>
       )}
 
-      <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+      
+      <div className="mt-5 flex flex-col gap-3">
         <button onClick={props.onOfferClick} className="rounded-xl bg-green-600 px-4 py-3 font-medium text-white hover:bg-green-700">
-          {TEXT.usageOfferInline(props.priceNow, props.was)}
+          <span className="mr-1">Get 50% off |</span>
+          <span className="mr-1">${props.priceNow}</span>
+          <span className="line-through">${props.was}</span>
         </button>
         <button onClick={props.onContinue} className="rounded-xl bg-red-600 px-4 py-3 font-medium text-white hover:bg-red-700">
           Continue
@@ -593,7 +638,7 @@ function QRange({
 }
 
 function ReasonsChooser({
-  reasonKey, setReasonKey, priceNow, was, onOfferClick, onProceed,
+  reasonKey, setReasonKey, priceNow, was, onOfferClick, onProceed, tried,
 }: {
   reasonKey: string
   setReasonKey: (k: ReasonKey) => void
@@ -601,6 +646,7 @@ function ReasonsChooser({
   was: number
   onOfferClick: () => void
   onProceed: () => void
+  tried: boolean
 }) {
   const options: { key: ReasonKey; label: string }[] = [
     { key: 'too_expensive', label: TEXT.reasonTooExp },
@@ -615,7 +661,7 @@ function ReasonsChooser({
       <Header title={TEXT.reasonsH1} />
       <p className="text-gray-600">{TEXT.reasonsSub}</p>
 
-      {!reasonKey && (
+      {tried && !reasonKey && (
         <p className="mt-3 text-sm text-red-600">{TEXT.reasonsNeedSelect}</p>
       )}
 
@@ -634,13 +680,15 @@ function ReasonsChooser({
         ))}
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="mt-6 flex flex-col gap-3">
         <button onClick={onOfferClick} className="rounded-xl bg-green-600 px-4 py-3 font-medium text-white hover:bg-green-700">
-          {TEXT.usageOfferInline(priceNow, was)}
+          <span className="mr-1">Get 50% off |</span>
+          <span className="mr-1">${priceNow}</span>
+          <span className="line-through">${was}</span>
         </button>
         <button
           onClick={onProceed}
-          className={`rounded-xl px-4 py-3 font-medium text-white ${reasonKey ? 'bg-red-600 hover:bg-red-700' : 'bg-red-600/50'}`}
+          className="rounded-xl bg-red-600 px-4 py-3 font-medium text-white hover:bg-red-700"
         >
           {TEXT.completeCancel}
         </button>
@@ -651,7 +699,7 @@ function ReasonsChooser({
 
 function ReasonFollowUp({
   heading, sub, radioLabel, prompt,
-  priceNow, was, text, setText, showCharCount, error, errorMsg,
+  priceNow, was, text, setText, showCharCount, showError, errorMsg,
   onOfferClick, onComplete, loading, inputKind,
 }: {
   heading: string
@@ -663,13 +711,17 @@ function ReasonFollowUp({
   text: string
   setText: (s: string) => void
   showCharCount: boolean
-  error: boolean
+  showError: boolean
   errorMsg: string
   onOfferClick: () => void
   onComplete: () => void
   loading: boolean
   inputKind?: 'money'
 }) {
+
+  const needsSup = prompt.trim().endsWith('*')
+  const promptText = needsSup ? prompt.trim().slice(0, -1) : prompt
+
   return (
     <>
       <Header title={heading} />
@@ -683,7 +735,13 @@ function ReasonFollowUp({
       </div>
 
       <div className="mt-4">
-        <label className="mb-1 block text-sm text-gray-700">{prompt}</label>
+        <label className="mb-1 block text-sm text-gray-700">
+          <span>{promptText}</span>
+          {needsSup && (
+            <span className="ml-0.5 align-text-top text-[10px]">*</span>
+          )}
+        </label>
+
         {inputKind === 'money' ? (
           <div className="flex items-center rounded-xl border border-gray-300 px-3">
             <span className="text-gray-500">$</span>
@@ -704,7 +762,7 @@ function ReasonFollowUp({
         )}
 
         <div className="mt-1 flex items-center justify-between">
-          <div className={`text-sm ${error ? 'text-red-600' : 'text-transparent'}`}>{error ? errorMsg : 'ok'}</div>
+          <div className={`text-sm ${showError ? 'text-red-600' : 'text-transparent'}`}>{showError ? errorMsg : 'ok'}</div>
           {showCharCount && (
             <div className="text-xs text-gray-500">
               {TEXT.min25} ({text.trim().length}/25)
@@ -713,9 +771,11 @@ function ReasonFollowUp({
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="mt-6 flex flex-col gap-3">
         <button onClick={onOfferClick} className="rounded-xl bg-green-600 px-4 py-3 font-medium text-white hover:bg-green-700">
-          {TEXT.usageOfferInline(priceNow, was)}
+          <span className="mr-1">Get 50% off |</span>
+          <span className="mr-1">${priceNow}</span>
+          <span className="line-through">${was}</span>
         </button>
         <button
           disabled={loading}
@@ -734,7 +794,7 @@ function FinishCard({ onBackToJobs }: { onBackToJobs: () => void }) {
     <>
       <div className="mb-2 text-2xl font-semibold text-gray-900 md:text-3xl">{TEXT.finishH1}</div>
       <div className="mt-2 max-w-prose text-gray-700">
-        <p>{TEXT.finishBody1}</p>
+        <p className="font-semibold text-lg md:text-xl">{TEXT.finishBody1}</p>
         <p className="mt-3">{TEXT.finishBody2}</p>
         <p className="mt-3 text-sm text-gray-500">{TEXT.finishFoot}</p>
       </div>
