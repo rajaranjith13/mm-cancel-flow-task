@@ -1,26 +1,25 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import CancelFlow from './CancelFlow'
-import NoJobFlow from './NoJobFlow'
+import { useState } from 'react';
+import CancelFlow from './CancelFlow/CancelFlow';
+import NoJobFlow from './NoJobFlow/NoJobFlow';
 
 export type CancelCommonProps = {
-  variant: 'A' | 'B'
-  cancellationId: string
-  plan: string
-  priceCents: number
-  renewsAt?: string
-  pending: boolean
-  prices: { control: { monthly: number; annual: number }; b: { monthly: number; annual: number } }
-}
+  variant: 'A' | 'B';
+  cancellationId: string;
+  plan: string;
+  priceCents: number;
+  renewsAt?: string;
+  pending: boolean;
+  prices: { control: { monthly: number; annual: number }; b: { monthly: number; annual: number } };
+};
 
 export default function CancellationRoot(props: CancelCommonProps) {
-  const [branch, setBranch] = useState<'none' | 'got_job' | 'no_job'>('none')
+  const [branch, setBranch] = useState<'none' | 'got_job' | 'no_job'>('none');
 
-  if (branch === 'got_job') return <CancelFlow {...props} />
-  if (branch === 'no_job') return <NoJobFlow {...props} />
+  if (branch === 'got_job') return <CancelFlow {...props} />;
+  if (branch === 'no_job') return <NoJobFlow {...props} />;
 
-  // Intro screen lives here so we don't touch CancelFlow.tsx
   return (
     <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-3 md:p-8">
       <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl ring-1 ring-black/5">
@@ -64,7 +63,6 @@ export default function CancellationRoot(props: CancelCommonProps) {
           </div>
 
           <div className="order-first overflow-hidden rounded-xl md:order-none">
-            {/* keep your same hero so the look matches */}
             <img
               src="/hero-main.jpg"
               alt="City skyline"
@@ -74,5 +72,5 @@ export default function CancellationRoot(props: CancelCommonProps) {
         </div>
       </div>
     </div>
-  )
+  );
 }
